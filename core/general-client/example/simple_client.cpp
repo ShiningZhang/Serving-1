@@ -126,15 +126,18 @@ int prepare_bert(PredictorInputs& input, std::vector<std::string>& fetch_name) {
 double total_thread_cost = 0;
 int total_thread_count = 0;
 int batch_size = 1;
+int total_count = 0;
 std::mutex g_mutex;
 
 void thread_func(ServingClient* client, PredictorInputs input, std::vector<std::string> fetch_name, uint64_t log_id) {
   Timer timeline;
   timeline.Start();
+  int count = 0;
   for (int i = 0; i < FLAGS_test_count; ++i) {
     PredictorOutputs output;
     client->predict(input, output, fetch_name, log_id);
     // LOG(INFO) << output.print();
+    ++count;
   }
   timeline.Pause();
   double cost = timeline.ElapsedMS();
@@ -143,6 +146,7 @@ void thread_func(ServingClient* client, PredictorInputs input, std::vector<std::
   std::lock_guard<std::mutex> lck(g_mutex);
   total_thread_cost += cost;
   total_thread_count++;
+  total_count += count;
 }
 } // namespace
 
@@ -219,12 +223,12 @@ int main(int argc, char* argv[]) {
   }
 
   total_timeline.Pause();
-  int total_count = FLAGS_test_count;
   double total_cost = total_timeline.ElapsedMS();
   double each_thread_cost = total_thread_cost / total_thread_count;
-  double qps = (double)total_count * batch_size / each_thread_cost;
+  double qps = (double)total_count * batch_size / (each_thread_cost / 1000.0);
 
-  LOG(INFO) << "total cost: " << total_cost << "ms\n"
+  LOG(INFO) << "\n" 
+            << "total cost: " << total_cost << "ms\n"
             << "each thread cost: " << each_thread_cost << "ms\n"
             << "qps: " << qps << "samples/s\n"
             << "total count: " <<  total_count;
