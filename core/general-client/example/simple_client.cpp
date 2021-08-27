@@ -225,7 +225,7 @@ int main(int argc, char* argv[]) {
   total_timeline.Pause();
   double total_cost = total_timeline.ElapsedMS();
   double each_thread_cost = total_thread_cost / total_thread_count;
-  double qps = (double)total_count * batch_size / (each_thread_cost / 1000.0);
+  double qps = (double)total_count / (each_thread_cost / 1000.0);
 
   LOG(INFO) << "\n" 
             << "total cost: " << total_cost << "ms\n"
