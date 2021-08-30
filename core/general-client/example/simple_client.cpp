@@ -123,6 +123,42 @@ int prepare_bert(PredictorInputs& input, std::vector<std::string>& fetch_name) {
   return 0;
 }
 
+int prepare_resnet50(PredictorInputs& input, std::vector<std::string>& fetch_name, int batch_size = 1) {
+  const int img_size = 3 * 224 * 224;
+  std::vector<float> float_feed(img_size);
+  {
+    std::string file_path = "daisy.bin";
+    std::ifstream imageFile(file_path, std::ios::binary);
+
+    if (!imageFile.is_open()) {
+      LOG(ERROR) << "Failed to open " << file_path;
+      return -1;
+    }
+
+    std::filebuf* pbuf = imageFile.rdbuf();
+    auto fileSize = pbuf->pubseekoff(0, std::ios::end, std::ios::in);
+
+    if (fileSize != img_size * sizeof(float)) {
+      LOG(ERROR) << "Img size is not 3*224*224";
+      return -1;
+    }
+
+    pbuf->pubseekpos(0, std::ios::in);
+    pbuf->sgetn((char *)float_feed.data(), fileSize);
+    imageFile.close();
+  }
+  std::vector<float> float_feed_batch;
+  for (int i = 0; i < batch_size; ++i) {
+    float_feed_batch.insert(float_feed_batch.end(), float_feed.begin(), float_feed.end());
+  }
+  std::vector<int> float_shape = {batch_size, 3, 224, 224};
+  std::string feed_name = "image";
+  fetch_name = {"score"};
+  std::vector<int> lod;
+  input.add_float_data(float_feed_batch, feed_name, float_shape, lod);
+  return 0;
+}
+
 double total_thread_cost = 0;
 int total_thread_count = 0;
 int batch_size = 1;
@@ -177,19 +213,32 @@ int main(int argc, char* argv[]) {
   PredictorInputs input;
   PredictorOutputs output;
   std::vector<std::string> fetch_name;
+  int ret = 0;
 
   if (sample_type == "fit_a_line") {
-    prepare_fit_a_line(input, fetch_name);
+    ret = prepare_fit_a_line(input, fetch_name);
   }
   else if (sample_type == "fit_a_line_batch") {
-    prepare_fit_a_line(input, fetch_name, 1000);
+    ret = prepare_fit_a_line(input, fetch_name, 1000);
     batch_size = 1000;
   }
   else if (sample_type == "bert") {
-    prepare_bert(input, fetch_name);
+    ret = prepare_bert(input, fetch_name);
+  }
+  else if (sample_type == "resnet50") {
+    ret = prepare_resnet50(input, fetch_name);
+  }
+  else if (sample_type == "resnet50_batch") {
+    ret = prepare_resnet50(input, fetch_name, 500);
+    batch_size = 500;
   }
   else {
-    prepare_fit_a_line(input, fetch_name);
+    ret = prepare_fit_a_line(input, fetch_name);
+  }
+
+  if (ret != 0) {
+    LOG(ERROR) << "Failed to prepare data!";
+    return 0;
   }
 
   // if (client->predict(input, output, fetch_name, 0) != 0) {
