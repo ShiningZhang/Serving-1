@@ -133,11 +133,11 @@ void thread_func(ServingClient* client, PredictorInputs input, std::vector<std::
   Timer timeline;
   timeline.Start();
   int count = 0;
+  PredictorOutputs output;
   for (int i = 0; i < FLAGS_test_count; ++i) {
-    PredictorOutputs output;
     client->predict(input, output, fetch_name, log_id);
     // LOG(INFO) << output.print();
-    ++count;
+    output.clear();
   }
   timeline.Pause();
   double cost = timeline.ElapsedMS();
@@ -146,7 +146,7 @@ void thread_func(ServingClient* client, PredictorInputs input, std::vector<std::
   std::lock_guard<std::mutex> lck(g_mutex);
   total_thread_cost += cost;
   total_thread_count++;
-  total_count += count;
+  total_count += FLAGS_test_count;
 }
 } // namespace
 
