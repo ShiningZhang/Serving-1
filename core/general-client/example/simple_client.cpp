@@ -16,8 +16,10 @@
 #include <vector>
 
 #include "core/general-client/include/brpc_client.h"
+#include "core/general-client/include/grpc_client.h"
 
 using baidu::paddle_serving::client::ServingClient;
+using baidu::paddle_serving::client::ServingGrpcClient;
 using baidu::paddle_serving::client::ServingBrpcClient;
 using baidu::paddle_serving::client::PredictorInputs;
 using baidu::paddle_serving::client::PredictorOutputs;
@@ -97,6 +99,7 @@ int main(int argc, char* argv[]) {
   } else {
     client.reset(new ServingBrpcClient());
   }
+  client.reset(new ServingGrpcClient());
   std::vector<std::string> confs;
   confs.push_back(conf);
   if (client->init(confs, url) != 0) {

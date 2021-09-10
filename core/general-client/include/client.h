@@ -43,7 +43,7 @@ class ServingClient {
 
   int load_client_config(const std::vector<std::string>& client_conf);
 
-  virtual int connect(const std::string server_port) = 0;
+  virtual int connect(const std::string& server_port) = 0;
 
   virtual int predict(const PredictorInputs& inputs,
                       PredictorOutputs& outputs,

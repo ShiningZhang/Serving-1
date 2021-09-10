@@ -59,6 +59,7 @@ option(PACK                 "Compile for whl"                                   
 option(WITH_TRT             "Compile Paddle Serving with TRT"                   OFF)
 option(PADDLE_ON_INFERENCE  "Compile for encryption"                             ON)
 option(WITH_OPENCV	    "Compile Paddle Serving with OPENCV"                    OFF)
+option(CLIENT_GRPC          "Compile Paddle Serving GRPC Client"                OFF)
 
 if(NOT DEFINED VERSION_TAG)
   set(VERSION_TAG "0.0.0")
@@ -130,6 +131,10 @@ if (SERVER)
     include(paddlepaddle)
 endif()
 
+if (CLIENT)
+    include(external/grpc)
+endif()
+
 message("paddle serving source dir: " ${PADDLE_SERVING_SOURCE_DIR})
 include_directories(${PADDLE_SERVING_SOURCE_DIR})
 include_directories(${PADDLE_SERVING_BINARY_DIR})
@@ -143,6 +148,11 @@ if(SERVER)
 	protobuf
 	paddlepaddle
 	brpc)
+endif()
+
+if(CLIENT)
+    set(EXTERNAL_LIBS
+    grpc)
 endif()
 
 set(EXTERNAL_LIBS

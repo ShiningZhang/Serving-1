@@ -231,3 +231,7 @@ endif(WITH_BRPC_RDMA)
 if(ON_INFER)
     add_definitions(-DPADDLE_ON_INFERENCE)
 endif(ON_INFER)
+
+if(CLIENT_GRPC)
+    add_definitions(-DCLIENT_TWITH_GRPC)
+endif

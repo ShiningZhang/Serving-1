@@ -29,7 +29,7 @@ class ServingBrpcClient : public ServingClient {
 
   ~ServingBrpcClient() {};
 
-  virtual int connect(const std::string server_port);
+  virtual int connect(const std::string& server_port);
 
   int predict(const PredictorInputs& inputs,
               PredictorOutputs& outputs,

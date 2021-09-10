@@ -74,5 +74,38 @@ endfunction()
 FILE(GLOB protos ${CMAKE_CURRENT_LIST_DIR}/*.proto)
 list(APPEND protos ${CMAKE_SOURCE_DIR}/core//predictor/proto/pds_option.proto
         ${CMAKE_SOURCE_DIR}/core//predictor/proto/builtin_format.proto)
+if(CLIENT_GRPC)
+list(REMOVE_ITEM protos ${CMAKE_CURRENT_LIST_DIR}/general_model_service.proto)
+endif()
 PROTOBUF_GENERATE_SERVING_CPP(FALSE PROTO_SRCS PROTO_HDRS ${protos})
 LIST(APPEND sdk_cpp_srcs ${PROTO_SRCS})
+
+if(CLIENT_GRPC)
+# Generate grpc stub of general_model_service
+add_custom_command(
+    OUTPUT "${CMAKE_CURRENT_BINARY_DIR}/general_model_service.proto"
+    COMMAND sed 
+        ARGS "s/option cc_generic_services = true/option cc_generic_services = false/g"
+        ${CMAKE_CURRENT_LIST_DIR}/general_model_service.proto
+        > ${CMAKE_CURRENT_BINARY_DIR}/general_model_service.proto
+    COMMENT "Running Paddle-serving C++ proto grpc"
+    VERBATIM)
+add_custom_command(
+    OUTPUT "${CMAKE_CURRENT_BINARY_DIR}/general_model_service.grpc.pb.cc"
+           "${CMAKE_CURRENT_BINARY_DIR}/general_model_service.grpc.pb.h"
+           "${CMAKE_CURRENT_BINARY_DIR}/general_model_service.pb.cc"
+           "${CMAKE_CURRENT_BINARY_DIR}/general_model_service.pb.h"
+    COMMAND  ${Protobuf_PROTOC_EXECUTABLE}
+        ARGS --grpc_out=${CMAKE_CURRENT_BINARY_DIR}
+        --cpp_out=${CMAKE_CURRENT_BINARY_DIR}
+        --plugin=protoc-gen-grpc=${GRPC_CPP_PLUGIN}
+        --proto_path=${CMAKE_CURRENT_BINARY_DIR}
+        -I ${CMAKE_SOURCE_DIR}/core//predictor/proto
+        ${CMAKE_CURRENT_BINARY_DIR}/general_model_service.proto
+    DEPENDS ${Protobuf_PROTOC_EXECUTABLE} ${GRPC_CPP_PLUGIN}
+            ${CMAKE_CURRENT_BINARY_DIR}/general_model_service.proto
+    COMMENT "Running Paddle-serving C++ protocol buffer compiler on general_model_service.grpc"
+    VERBATIM)
+LIST(APPEND sdk_cpp_srcs ${CMAKE_CURRENT_BINARY_DIR}/general_model_service.grpc.pb.cc)
+LIST(APPEND sdk_cpp_srcs ${CMAKE_CURRENT_BINARY_DIR}/general_model_service.pb.cc)
+endif()

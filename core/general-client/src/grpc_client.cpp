@@ -12,14 +12,17 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-#include "core/general-client/include/brpc_client.h"
+#include "grpcpp/create_channel.h"
+#include "grpcpp/security/credentials.h"
+#include "core/general-client/include/grpc_client.h"
 #include "core/sdk-cpp/include/common.h"
 #include "core/util/include/timer.h"
 #include "core/sdk-cpp/builtin_format.pb.h"
 #include "core/sdk-cpp/general_model_service.pb.h"
-DEFINE_bool(profile_client, false, "");
-DEFINE_bool(profile_server, false, "");
-#define BRPC_MAX_BODY_SIZE 512 * 1024 * 1024
+#include "core/sdk-cpp/general_model_service.grpc.pb.h"
+DECLARE_bool(profile_client);
+DECLARE_bool(profile_server);
+#define GRPC_MAX_BODY_SIZE 512 * 1024 * 1024
 
 namespace baidu {
 namespace paddle_serving {
@@ -29,77 +32,65 @@ using baidu::paddle_serving::Timer;
 using baidu::paddle_serving::predictor::general_model::Request;
 using baidu::paddle_serving::predictor::general_model::Response;
 using baidu::paddle_serving::predictor::general_model::Tensor;
+using baidu::paddle_serving::predictor::general_model::Tensor;
+using baidu::paddle_serving::predictor::general_model::GeneralModelService;
 
 using configure::SDKConf;
 using configure::VariantConf;
 using configure::Predictor;
 using configure::VariantConf;
 
-int ServingBrpcClient::connect(const std::string& server_port) {
-  brpc::fLU64::FLAGS_max_body_size = BRPC_MAX_BODY_SIZE;
-  if (_api.create(gen_desc(server_port)) != 0) {
-    LOG(ERROR) << "Predictor Creation Failed";
-    return -1;
+std::shared_ptr<grpc::Channel>
+GetChannelStub(
+    const std::string& url, const GrpcOptions& grpc_options) {
+  // map<url, Channel*> used to keep track of GRPC channels.
+  // reuse the established Channel of same url
+  static std::map<std::string, std::shared_ptr<grpc::Channel>> stub_map;
+  static std::mutex stub_map_mtx;
+
+  std::lock_guard<std::mutex> lock(stub_map_mtx);
+  const auto& channel_itr = stub_map.find(url);
+  if (channel_itr != stub_map.end()) {
+    return channel_itr->second;
+  } else {
+    grpc::ChannelArguments arguments;
+    arguments.SetMaxSendMessageSize(GRPC_MAX_BODY_SIZE);
+    arguments.SetMaxReceiveMessageSize(GRPC_MAX_BODY_SIZE);
+    // GRPC KeepAlive: https://github.com/grpc/grpc/blob/master/doc/keepalive.md
+    arguments.SetInt(
+        GRPC_ARG_KEEPALIVE_TIME_MS, grpc_options.keepalive_time_ms);
+    arguments.SetInt(
+        GRPC_ARG_KEEPALIVE_TIMEOUT_MS, grpc_options.keepalive_timeout_ms);
+    arguments.SetInt(
+        GRPC_ARG_KEEPALIVE_PERMIT_WITHOUT_CALLS,
+        grpc_options.keepalive_permit_without_calls);
+    arguments.SetInt(
+        GRPC_ARG_HTTP2_MAX_PINGS_WITHOUT_DATA,
+        grpc_options.http2_max_pings_without_data);
+    std::shared_ptr<grpc::ChannelCredentials> credentials =
+        grpc::InsecureChannelCredentials();
+    std::shared_ptr<grpc::Channel> channel =
+        grpc::CreateCustomChannel(url, credentials, arguments);
+    stub_map.insert(
+        std::make_pair(url, channel));
+    return channel;
   }
-  // _api.thrd_initialize();
+}
+
+int ServingGrpcClient::connect(const std::string& server_port) {
+  std::shared_ptr<grpc::Channel> channel = 
+      GetChannelStub(server_port, GrpcOptions());
+  stub_ = GeneralModelService::NewStub(channel);
   return 0;
 }
 
-std::string ServingBrpcClient::gen_desc(const std::string server_port) {
-  // default config for brpc
-  SDKConf sdk_conf;
-
-  Predictor* predictor = sdk_conf.add_predictors();
-  predictor->set_name("general_model");
-  predictor->set_service_name("baidu.paddle_serving.predictor.general_model.GeneralModelService");
-  predictor->set_endpoint_router("WeightedRandomRender");
-  predictor->mutable_weighted_random_render_conf()->set_variant_weight_list("100");
-  VariantConf* predictor_var = predictor->add_variants();
-  predictor_var->set_tag("default_tag_1");
-  std::string cluster = "list://" + server_port;
-  predictor_var->mutable_naming_conf()->set_cluster(cluster);
-
-  VariantConf* var = sdk_conf.mutable_default_variant_conf();
-  var->set_tag("default");
-  var->mutable_connection_conf()->set_connect_timeout_ms(2000);
-  var->mutable_connection_conf()->set_rpc_timeout_ms(200000);
-  var->mutable_connection_conf()->set_connect_retry_count(2);
-  var->mutable_connection_conf()->set_max_connection_per_host(100);
-  var->mutable_connection_conf()->set_hedge_request_timeout_ms(-1);
-  var->mutable_connection_conf()->set_hedge_fetch_retry_count(2);
-  var->mutable_connection_conf()->set_connection_type("pooled");
-  var->mutable_connection_conf()->set_connect_timeout_ms(2000);
-
-  var->mutable_naming_conf()->set_cluster_filter_strategy("Default");
-  var->mutable_naming_conf()->set_load_balance_strategy("la");
-
-  var->mutable_rpc_parameter()->set_compress_type(0);
-  var->mutable_rpc_parameter()->set_package_size(20);
-  var->mutable_rpc_parameter()->set_protocol("baidu_std");
-  var->mutable_rpc_parameter()->set_max_channel_per_request(3);
-
-  return sdk_conf.SerializePartialAsString();
-}
-
-int ServingBrpcClient::predict(const PredictorInputs& inputs,
+int ServingGrpcClient::predict(const PredictorInputs& inputs,
                                PredictorOutputs& outputs,
                                const std::vector<std::string>& fetch_name,
                                const uint64_t log_id) {
   Timer timeline;
   int64_t preprocess_start = timeline.TimeStampUS();
-  // thread initialize for StubTLS
-  _api.thrd_initialize();
-  std::string variant_tag;
-  // predictor is bound to request with brpc::Controller
-  _predictor = _api.fetch_predictor("general_model", &variant_tag);
-  if (_predictor == NULL) {
-    LOG(ERROR) << "Failed fetch predictor so predict error!";
-    return -1;
-  }
-  // predict_res_batch.set_variant_tag(variant_tag);
-  VLOG(2) << "fetch general model predictor done.";
-  VLOG(2) << "variant_tag:" << variant_tag;
-  VLOG(2) << "max body size : " << brpc::fLU64::FLAGS_max_body_size;
+  VLOG(2) << "max body size : " << GRPC_MAX_BODY_SIZE;
   Request req;
   req.set_log_id(log_id);
   for (auto &name : fetch_name) {
@@ -126,7 +117,9 @@ int ServingBrpcClient::predict(const PredictorInputs& inputs,
   }
 
   res.Clear();
-  if (_predictor->inference(&req, &res) != 0) {
+  grpc::ClientContext context;
+  grpc::Status status = stub_->inference(&context, req, &res);
+  if (!status.ok()) {
     LOG(ERROR) << "failed call predictor with req: " << req.ShortDebugString();
     return -1;
   }
@@ -160,9 +153,6 @@ int ServingBrpcClient::predict(const PredictorInputs& inputs,
 
     fprintf(stderr, "%s\n", oss.str().c_str());
   }
-
-  // release predictor
-  _api.thrd_clear();
 
   return 0;
 }
