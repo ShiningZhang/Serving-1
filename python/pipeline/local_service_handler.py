@@ -125,10 +125,11 @@ class LocalServiceHandler(object):
             self._use_lite = True
         elif device_type == 4:
             # Kunlun XPU
-            self._device_name = "arm"
+            self._device_name = "gpu"
             devices = [int(x) for x in devices.split(",")]
-            self._use_lite = True
+            # self._use_lite = True
             self._use_xpu = True
+            self._use_gpu = True
         else:
             _LOGGER.error(
                 "LocalServiceHandler initialization fail. device_type={}"
@@ -280,6 +281,10 @@ class LocalServiceHandler(object):
                 server.set_gpuid(gpuid)
             # TODO: support arm or arm + xpu later
             server.set_device(self._device_name)
+            if self._use_xpu:
+                server.set_xpu()
+            if self._use_lite:
+                server.set_lite()
 
         server.set_op_sequence(op_seq_maker.get_op_sequence())
         server.set_num_threads(thread_num)
