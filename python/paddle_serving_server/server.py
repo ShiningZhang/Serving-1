@@ -88,6 +88,7 @@ class Server(object):
         self.gpu_multi_stream = False
         self.use_lite = False
         self.use_xpu = False
+        self.use_rocm = False
         self.model_config_paths = collections.OrderedDict()
         self.product_name = None
         self.container_id = None
@@ -188,6 +189,9 @@ class Server(object):
 
     def set_xpu(self):
         self.use_xpu = True
+
+    def set_rocm(self):
+        self.use_rocm = True
 
     def _prepare_engine(self, model_config_paths, device, use_encryption_model):
         self.device = device
@@ -434,6 +438,8 @@ class Server(object):
                 device_version = "gpu-cuda" + version_suffix
         elif device_type == "2":
             device_version = "xpu-" + platform.machine()
+        if self.use_rocm:
+            device_version = "rocm-" + platform.machine()
         return device_version
 
     def download_bin(self):

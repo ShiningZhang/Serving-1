@@ -173,6 +173,8 @@ def serve_args():
     parser.add_argument(
         "--use_xpu", default=False, action="store_true", help="Use XPU")
     parser.add_argument(
+        "--use_rocm", default=False, action="store_true", help="Use DCU ROCM")
+    parser.add_argument(
         "--product_name",
         type=str,
         default=None,
@@ -263,6 +265,8 @@ def start_gpu_card_model(gpu_mode, port, args):  # pylint: disable=doc-string-mi
     server.set_device(device)
     if args.use_xpu:
         server.set_xpu()
+    if args.use_rocm:
+        server.set_rocm()
 
     if args.product_name != None:
         server.set_product_name(args.product_name)
