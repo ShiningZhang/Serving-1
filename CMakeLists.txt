@@ -164,6 +164,10 @@ if(SERVER)
     endif()
 
     list(APPEND EXTERNAL_LIBS paddlepaddle)
+    if(WITH_ASCEND_CL)
+	include(external/ascend)
+	list(APPEND EXTERNAL_LIBS ascend ascend_cl)
+    endif()
 endif()
 
 
