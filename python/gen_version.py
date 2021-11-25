@@ -43,7 +43,7 @@ if package_name.endswith('gpu'):
     update_info("paddle_serving_server/version.py", "device_type", "1")
 elif package_name.endswith('xpu'):
     update_info("paddle_serving_server/version.py", "device_type", "2")
-elif package_name.endswith('ascendcl'):
+elif package_name.endswith('npu'):
     update_info("paddle_serving_server/version.py", "device_type", "3")
 
 path = "paddle_serving_" + sys.argv[1]
