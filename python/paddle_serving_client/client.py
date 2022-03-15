@@ -428,7 +428,7 @@ class Client(object):
             #if input is string, feed is not numpy.
             elif self.feed_types_[key] in string_type:
                 string_feed_names.append(key)
-                string_shape.append(self.feed_shapes_[key])
+                shape_lst = []
                 if "{}.lod".format(key) in feed_dict:
                     string_lod_slot_batch.append(feed_dict["{}.lod".format(
                         key)])
@@ -436,8 +436,11 @@ class Client(object):
                     string_lod_slot_batch.append([])
                 if type(feed_dict[key]) is np.ndarray:
                     string_slot.append(feed_dict[key].tostring())
+                    shape_lst.extend(list(feed_dict[key].shape))
+                    string_shape.append(shape_lst)
                 else:
                     string_slot.append(feed_dict[key])
+                    string_shape.append(self.feed_shapes_[key])
                 self.has_numpy_input = True
 
         self.profile_.record('py_prepro_1')

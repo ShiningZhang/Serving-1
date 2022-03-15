@@ -36,6 +36,17 @@ if(WITH_ASCEND_CL AND NOT WITH_LITE)
     target_link_libraries(serving ascendcl acl_op_compiler)
 endif()
 
+target_include_directories(serving
+  PUBLIC
+  /usr/local/include/python3.6m/
+  /home/zhangliang35/code/third_party/pybind11/include
+)
+
+target_link_libraries(
+    serving
+  /usr/local/lib/libpython3.6m.so
+)
+
 
 if(WITH_GPU)
     target_link_libraries(serving ${CUDA_LIBRARIES})
